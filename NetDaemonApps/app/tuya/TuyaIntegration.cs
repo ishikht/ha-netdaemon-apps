@@ -12,14 +12,13 @@ namespace TuyaIntegrationApp
 {
     public class TuyaIntegration : NetDaemonRxApp
     {
-        private TuyaScanner _scanner;
+        private readonly TuyaScanner _scanner = new();
         public IEnumerable<Device>? Devices { get; set; }
         public override void Initialize()
         {
             try
             {
                 //https://github.com/ClusterM/tuyanet
-                _scanner = new TuyaScanner();
                 _scanner.OnNewDeviceInfoReceived += Scanner_OnNewDeviceInfoReceived;
                 Log("Starting discovery");
                 _scanner.Start();

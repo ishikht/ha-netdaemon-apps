@@ -350,3 +350,4 @@ MigrationBackup/
 .ionide/
 NetDaemonApps/appsettings.json
 NetDaemonApps/app/tuya/TuyaIntegration.yaml
+.idea/

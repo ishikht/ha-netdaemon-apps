@@ -1,3 +1,3 @@
 # Home Assistant NetDaemon Apps
 
-Tuya battery powered Window/Door sensors intgration
+Tuya battery powered Window/Door Wifi sensors integration
