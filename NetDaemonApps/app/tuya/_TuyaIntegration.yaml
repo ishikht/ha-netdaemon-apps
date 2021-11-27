@@ -1,0 +1,8 @@
+tuya_app:
+  class: TuyaIntegrationApp.TuyaIntegration
+  devices:
+  - name: "e.g. tuya_window_bedroom"
+    friendly_name: "e.g. Bedroom window"
+    ip: "Device IP"
+    localKey: "Local Key"
+    deviceId: "Device Id"

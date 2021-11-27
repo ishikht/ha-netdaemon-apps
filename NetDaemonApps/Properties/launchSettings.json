@@ -1,0 +1,14 @@
+{
+  "profiles": {
+    "TuyaIntegrationApp": {
+      "commandName": "Project",
+      "workingDirectory": "$(SolutionDir)\\NetDaemonApps",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    "Docker": {
+      "commandName": "Docker"
+    }
+  }
+}

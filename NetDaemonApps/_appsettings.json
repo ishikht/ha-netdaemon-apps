@@ -1,0 +1,15 @@
+{
+  "Logging": {
+    "MinimumLevel": "Debug"
+  },
+  "HomeAssistant": {
+    "Host": "IP OR HOSTNAME",
+    "Port": 8123,
+    "Ssl": false,
+    "Token": "Long-Lived Access Token"
+  },
+  "NetDaemon": {
+    "AppSource": ".",
+    "GenerateEntities": false
+  }
+}
