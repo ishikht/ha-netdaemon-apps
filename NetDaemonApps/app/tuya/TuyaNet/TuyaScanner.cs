@@ -24,6 +24,7 @@ namespace com.clusterrr.TuyaNet
         private UdpClient udpServer33 = null;
         private Thread udpListener31 = null;
         private Thread udpListener33 = null;
+        private List<TuyaDeviceScanInfo> devices = new List<TuyaDeviceScanInfo>();
 
         /// <summary>
         /// Even that will be called on every broadcast message from devices.
@@ -46,6 +47,7 @@ namespace com.clusterrr.TuyaNet
         {
             Stop();
             running = true;
+            devices.Clear();
             udpServer31 = new UdpClient(UDP_PORT31);
             udpServer33 = new UdpClient(UDP_PORTS33);
             udpListener31 = new Thread(UdpListener31Thread);
@@ -130,8 +132,9 @@ namespace com.clusterrr.TuyaNet
         {
             var deviceInfo = JsonConvert.DeserializeObject<TuyaDeviceScanInfo>(json);
             OnDeviceInfoReceived?.Invoke(this, deviceInfo);
-            if ((OnNewDeviceInfoReceived) != null)
+            if ((OnNewDeviceInfoReceived) != null && !devices.Contains(deviceInfo))
             {
+                devices.Add(deviceInfo);
                 OnNewDeviceInfoReceived?.Invoke(this, deviceInfo);
             }
         }

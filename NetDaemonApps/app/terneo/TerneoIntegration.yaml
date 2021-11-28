@@ -1,0 +1,8 @@
+terneo_app:
+  class: TerneoIntegration.TerneoIntegration
+#  devices:
+#    - name: "tuya_window_bedroom_right"
+#      friendly_name: "Bedroom right window sensor"
+#      ip: ""
+#      localKey: ""
+#      deviceId: ""
