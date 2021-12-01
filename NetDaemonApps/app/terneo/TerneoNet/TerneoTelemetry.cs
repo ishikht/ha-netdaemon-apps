@@ -15,7 +15,7 @@ namespace TerneoIntegration.TerneoNet
         
         [JsonProperty("t.5")]
         [JsonConverter(typeof(RawTemperatureConverter))]
-        public double SetTemperature { get; set; }
+        public double TargetTemperature { get; set; }
         //public double SetTemperatureC => SetTemperature / 16.0;
 
         [JsonProperty("f.0")]

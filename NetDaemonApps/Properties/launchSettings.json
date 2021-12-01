@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "TuyaIntegrationApp": {
+    "NetDaemonApps": {
       "commandName": "Project",
       "workingDirectory": "$(SolutionDir)\\NetDaemonApps",
       "environmentVariables": {
