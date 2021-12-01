@@ -13,7 +13,7 @@ namespace TuyaIntegrationApp
     public class TuyaIntegration : NetDaemonRxApp
     {
         private readonly TuyaScanner _scanner = new();
-        public IEnumerable<Device>? Devices { get; set; }
+        public IEnumerable<TuyaDeviceConfig>? Devices { get; set; }
 
         public override void Initialize()
         {
@@ -44,7 +44,7 @@ namespace TuyaIntegrationApp
                     return;
 
                 Dictionary<int, object> result;
-                var tuyaDevice = new TuyaDevice(device.ip, device.localKey, device.deviceId);
+                var tuyaDevice = new com.clusterrr.TuyaNet.TuyaDevice(device.ip, device.localKey, device.deviceId);
                 result = await tuyaDevice.GetDps();
 
                 if (result.Any() && result.ContainsKey(1))
@@ -74,17 +74,5 @@ namespace TuyaIntegrationApp
             _scanner.OnDeviceInfoReceived -= Scanner_OnDeviceInfoReceived;
             return base.DisposeAsync();
         }
-    }
-
-
-    public class Device
-    {
-        public string? ip { get; set; }
-        public string? name { get; set; }
-        public string? friendly_name { get; set; }
-        public string? localKey { get; set; }
-        public string? deviceId { get; set; }
-
-
     }
 }

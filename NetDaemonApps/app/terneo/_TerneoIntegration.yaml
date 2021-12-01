@@ -1,0 +1,7 @@
+terneo_app:
+  class: TerneoIntegration.TerneoIntegration
+  devices:
+    - name: "terneo_balcony_thermostat"
+      friendly_name: "Balcony Thermostat"
+      ip: ""
+      serialNumber: ""

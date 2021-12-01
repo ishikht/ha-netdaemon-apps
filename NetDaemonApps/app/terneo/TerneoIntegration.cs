@@ -28,9 +28,4 @@ namespace TerneoIntegration
             var telemetry = await device.GetTelemetry();
         }
     }
-
-    public class RequestCmd
-    {
-        public int cmd { get; set; }
-    }
 }
