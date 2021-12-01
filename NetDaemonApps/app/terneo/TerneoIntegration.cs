@@ -76,13 +76,21 @@ namespace TerneoIntegration
             var telemetry = await device.GetTelemetry();
             var action = telemetry.PowerOff ? "off" : telemetry.Heating ? "heating" : "idle";
             var state = action == "off" ? "off" : "heat";
+            
+            const int minTemperature = 5;
+            const int maxTemperature = 45;
             var temperature = Math.Round(telemetry.FloorTemperature, 1);
+            if (temperature < minTemperature || temperature > maxTemperature)
+            {
+                LogError($"TERNEO: Wrong temperature, value {temperature} out of min/max temperature");
+                return;
+            }
             
             SetState(entityName, state, new
             {
                 hvac_modes = new[] {"heat", "off"},
-                min_temp = 5,
-                max_temp = 45,
+                min_temp = minTemperature,
+                max_temp = maxTemperature,
                 target_temp_step = 1,
                 current_temperature = temperature,
                 temperature = telemetry.TargetTemperature,
