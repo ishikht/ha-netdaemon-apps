@@ -30,6 +30,9 @@
 
 
     <ItemGroup>
+        <None Update="app\tuya\_TuyaIntegration.yaml">
+          <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+        </None>
         <None Update="_appsettings.json">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
@@ -38,6 +41,9 @@
         </None>
         <None Update="TuyaIntegration.yaml">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+        <None Update="app\tuya\TuyaIntegration.yaml">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
         <!--<Content Include="app\**">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>

@@ -37,10 +37,9 @@ namespace TuyaIntegrationApp
             {
                 Log($"TUYA: Device discovered: IP: {e.IP}, ID: {e.GwId}, version: {e.Version}");
                 var device = Devices?.FirstOrDefault(d => d.deviceId == e.GwId);
-                if (device == null
-                    || device.ip == null
-                    || device.localKey == null
-                    || device.deviceId == null
+                if (device?.ip == null 
+                    || device.localKey == null 
+                    || device.deviceId == null 
                     || device.name == null)
                     return;
 
