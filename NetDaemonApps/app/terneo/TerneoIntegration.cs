@@ -24,6 +24,45 @@ namespace TerneoIntegration
 
             EventChanges.Where(e => e.Event == "set_temperature" && e.Domain == "climate")
                 .Subscribe(async e => await OnHaClimateTemperatureSet(e));
+            EventChanges.Where(e => e.Event == "set_hvac_mode" && e.Domain == "climate")
+                .Subscribe(async e => await OnHaHvacModeSet(e));
+        }
+
+        private async Task OnHaHvacModeSet(RxEvent e)
+        {
+            var json = e.Data?.ToString();
+            Dictionary<string, string> data = JsonConvert.DeserializeObject<Dictionary<string, string>>(json);
+
+            if (data == null ||
+                !data.ContainsKey("entity_id") ||
+                !_onlineDevices.ContainsKey(data["entity_id"]))
+                return;
+            
+            data.TryGetValue("hvac_mode", out var hvacMode);
+            if (string.IsNullOrEmpty(hvacMode)) return;
+
+            var device = _onlineDevices[data["entity_id"]];
+            if (hvacMode == "off")
+            {
+                var isSucceed = await device.PowerOff();
+                if (!isSucceed)
+                {
+                    LogError($"TERNEO: Failed to power off the device {data["entity_id"]}");
+                    return;
+                }
+            }
+            
+            if (hvacMode == "heat")
+            {
+                var isSucceed = await device.PowerOn();
+                if (!isSucceed)
+                {
+                    LogError($"TERNEO: Failed to power on the device {data["entity_id"]}");
+                    return;
+                }
+            }
+            
+            Log($"TERNEO: Set hvac mode to {hvacMode} on device {data["entity_id"]}");
         }
 
         private async Task OnHaClimateTemperatureSet(RxEvent e)
@@ -41,8 +80,13 @@ namespace TerneoIntegration
             int.TryParse(temperatureStr, out var temperature);
 
             var device = _onlineDevices[data["entity_id"]];
-            await device.SetTemperature(temperature);
-            
+            var isSucceed = await device.SetTemperature(temperature);
+            if (!isSucceed)
+            {
+                LogError($"TERNEO: Failed to set temperature {temperature} on device {data["entity_id"]}");
+                return;
+            }
+
             Log($"TERNEO: Set temperature {temperature} on device {data["entity_id"]}");
         }
 
@@ -73,33 +117,41 @@ namespace TerneoIntegration
         private async Task UpdateHaEntityState(string entityName)
         {
             TerneoDevice device = _onlineDevices[entityName];
-            var telemetry = await device.GetTelemetry();
-            var action = telemetry.PowerOff ? "off" : telemetry.Heating ? "heating" : "idle";
-            var state = action == "off" ? "off" : "heat";
             
-            const int minTemperature = 5;
-            const int maxTemperature = 45;
-            var temperature = Math.Round(telemetry.FloorTemperature, 1);
-            if (temperature < minTemperature || temperature > maxTemperature)
+            try
             {
-                LogError($"TERNEO: Wrong temperature, value {temperature} out of min/max temperature");
-                return;
+                var telemetry = await device.GetTelemetry();
+                var action = telemetry.PowerOff ? "off" : telemetry.Heating ? "heating" : "idle";
+                var state = action == "off" ? "off" : "heat";
+            
+                const int minTemperature = 5;
+                const int maxTemperature = 45;
+                var temperature = Math.Round(telemetry.FloorTemperature, 1);
+                if (temperature < minTemperature || temperature > maxTemperature)
+                {
+                    LogError($"TERNEO: Wrong temperature, value {temperature} out of min/max temperature");
+                    return;
+                }
+            
+                SetState(entityName, state, new
+                {
+                    hvac_modes = new[] {"heat", "off"},
+                    min_temp = minTemperature,
+                    max_temp = maxTemperature,
+                    target_temp_step = 1,
+                    current_temperature = temperature,
+                    temperature = telemetry.TargetTemperature,
+                    supported_features = 1,
+                    hvac_action = action,
+                    hvac_mode = state
+                });
+            
+                Log($"TERNEO: entity {entityName} set state {state} and read temperature {temperature}");
             }
-            
-            SetState(entityName, state, new
+            catch (Exception e)
             {
-                hvac_modes = new[] {"heat", "off"},
-                min_temp = minTemperature,
-                max_temp = maxTemperature,
-                target_temp_step = 1,
-                current_temperature = temperature,
-                temperature = telemetry.TargetTemperature,
-                supported_features = 1,
-                hvac_action = action,
-                hvac_mode = state
-            });
-            
-            Log($"TERNEO: entity {entityName} set state {state} and read temperature {temperature}");
+                LogError(e, $"TERNEO: Failed to update entity {entityName} state");
+            }
         }
         
         public static System.Timers.Timer SetInterval(Action action, int interval)
