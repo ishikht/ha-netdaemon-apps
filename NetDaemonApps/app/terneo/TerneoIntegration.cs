@@ -20,7 +20,10 @@ namespace TerneoIntegration
         public override void Initialize()
         {
             if (Cloud != null)
+            {
                 _cloudService = new CloudService(Cloud);
+                var result = _cloudService.LoginAsync().GetAwaiter().GetResult();
+            }
             
             _scanner.OnNewDeviceInfoReceived += Scanner_OnDeviceInfoReceived;
             Log("TERNEO: Starting discovery");

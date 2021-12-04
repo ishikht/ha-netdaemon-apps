@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
@@ -8,7 +10,7 @@ namespace TerneoIntegration.TerneoNet
 {
     public class CloudService
     {
-        private const string ApiBaseUrl = " https://my.hmarex.com/api";
+        private const string ApiBaseUrl = "https://my.terneo.ua/api";
         private readonly CloudSettings _settings;
 
         public CloudService(CloudSettings settings)
@@ -23,8 +25,13 @@ namespace TerneoIntegration.TerneoNet
             var request = new {email = _settings.Email, password = _settings.Password};
             var jsonRequest = JsonConvert.SerializeObject(request);
             
-            
-            var response = await httpClient.PostAsync($"{ApiBaseUrl}/login", new StringContent(jsonRequest));
+            httpClient.DefaultRequestHeaders
+                .Accept
+                .Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            var response = await httpClient.PostAsync($"{ApiBaseUrl}/login/", 
+                new StringContent(jsonRequest,
+                    Encoding.UTF8, 
+                    "application/json"));
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync();
