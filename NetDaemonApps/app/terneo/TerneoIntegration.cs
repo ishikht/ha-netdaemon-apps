@@ -13,10 +13,15 @@ namespace TerneoIntegration
     {
         private readonly Dictionary<string, TerneoDevice> _onlineDevices = new();
         private readonly TerneoScanner _scanner = new();
+        private CloudService? _cloudService;
         public IEnumerable<TerneoDeviceConfig>? Devices { get; set; }
+        public CloudSettings? Cloud { get; set; }
 
         public override void Initialize()
         {
+            if (Cloud != null)
+                _cloudService = new CloudService(Cloud);
+            
             _scanner.OnNewDeviceInfoReceived += Scanner_OnDeviceInfoReceived;
             Log("TERNEO: Starting discovery");
             _scanner.Start();
@@ -127,7 +132,7 @@ namespace TerneoIntegration
                 const int minTemperature = 5;
                 const int maxTemperature = 45;
                 var temperature = Math.Round(telemetry.FloorTemperature, 1);
-                if (temperature < minTemperature || temperature > maxTemperature)
+                if (temperature is < minTemperature or > maxTemperature)
                 {
                     LogError($"TERNEO: Wrong temperature, value {temperature} out of min/max temperature");
                     return;

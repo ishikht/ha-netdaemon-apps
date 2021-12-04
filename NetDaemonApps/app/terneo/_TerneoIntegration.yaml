@@ -1,5 +1,8 @@
 terneo_app:
   class: TerneoIntegration.TerneoIntegration
+  cloud:
+    email: <your terneo email>
+    password: <your terneo password>
   devices:
     - name: "terneo_balcony_thermostat"
       friendly_name: "Balcony Thermostat"
