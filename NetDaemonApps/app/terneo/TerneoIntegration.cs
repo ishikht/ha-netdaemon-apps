@@ -101,6 +101,10 @@ namespace TerneoIntegration
             if (!isSucceed)
             {
                 LogError($"TERNEO: Failed to set temperature {temperature} on device {data["entity_id"]}");
+                if (_cloudService == null || _cloudDevices == null || !_cloudDevices.Any()) return;
+                var cloudDevice = _cloudDevices.SingleOrDefault(d => d.SerialNumber == device.SerialNumber);
+                if (cloudDevice == null) return;
+                await _cloudService.SetTemperature(cloudDevice.Id, temperature);
                 return;
             }
 
@@ -194,15 +198,15 @@ namespace TerneoIntegration
             }
             catch (Exception e)
             {
-                LogError(e, $"TERNEO: Failed to obtain telemetry for {entityName}");
+                LogError(e, $"TERNEO: Failed to obtain cloud telemetry for {entityName}");
             }
 
             return null;
         }
 
-        public static Timer SetInterval(Action action, int interval)
+        public static System.Timers.Timer SetInterval(Action action, int interval)
         {
-            Timer tmr = new();
+            System.Timers.Timer tmr = new();
             tmr.Elapsed += (sender, args) => action();
             tmr.AutoReset = true;
             tmr.Interval = interval;

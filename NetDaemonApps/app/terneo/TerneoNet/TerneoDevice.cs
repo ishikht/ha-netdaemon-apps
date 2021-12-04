@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -33,6 +34,7 @@ namespace TerneoIntegration.TerneoNet
                 if (response.IsSuccessStatusCode)
                 {
                     var result = await response.Content.ReadAsStringAsync();
+                    if (string.IsNullOrEmpty(result)) throw new Exception("Telemetry request returned empty string");
                     return JsonConvert.DeserializeObject<TerneoTelemetry>(result);
                 }
             }

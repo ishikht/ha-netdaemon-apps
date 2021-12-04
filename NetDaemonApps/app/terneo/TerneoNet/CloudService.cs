@@ -82,5 +82,30 @@ namespace TerneoIntegration.TerneoNet
 
             return null;
         }
+        
+        public async Task<bool> SetTemperature(int id, int temperature)
+        {
+            var httpClient = new HttpClient();
+            httpClient.DefaultRequestHeaders.Add("Authorization", "Token " + _accessToken);
+
+            var request = new {value = temperature};
+            var jsonRequest = JsonConvert.SerializeObject(request);
+
+            var response = await httpClient.PutAsync($"{ApiBaseUrl}/device/{id}/setpoint/",
+                new StringContent(jsonRequest, Encoding.UTF8, "application/json"));
+
+            if (response.IsSuccessStatusCode)
+            {
+                var jsonDocument = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+
+                var nav = jsonDocument.ToNavigation();
+                if (!nav["value"].Exist) return false;
+
+                var responseTemperature = nav["value"].GetInt32OrDefault();
+                return responseTemperature == temperature;
+            }
+
+            return false;
+        }
     }
 }
