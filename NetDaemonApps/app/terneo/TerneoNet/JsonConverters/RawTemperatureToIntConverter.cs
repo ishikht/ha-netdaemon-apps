@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 
 namespace TerneoIntegration.TerneoNet.JsonConverters
 {
-    public class RawTemperatureConverter:JsonConverter
+    public class RawTemperatureToIntConverter:JsonConverter
     {
         public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
         {
@@ -15,7 +15,7 @@ namespace TerneoIntegration.TerneoNet.JsonConverters
             var parseResult = Int32.TryParse(reader.Value as string, out var intValue);
             if (parseResult)
             {
-                return intValue / 16.0;
+                return  intValue / 16;
             }
 
             return null;
@@ -23,7 +23,7 @@ namespace TerneoIntegration.TerneoNet.JsonConverters
 
         public override bool CanConvert(Type objectType)
         {
-            return objectType == typeof(double);
+            return objectType == typeof(int);
         }
     }
 }

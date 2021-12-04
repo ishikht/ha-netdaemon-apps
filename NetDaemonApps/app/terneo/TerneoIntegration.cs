@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
+using System.Timers;
 using NetDaemon.Common.Reactive;
 using Newtonsoft.Json;
 using TerneoIntegration.TerneoNet;
@@ -13,19 +14,15 @@ namespace TerneoIntegration
     {
         private readonly Dictionary<string, TerneoDevice> _onlineDevices = new();
         private readonly TerneoScanner _scanner = new();
+        private IEnumerable<CloudDevice>? _cloudDevices;
         private CloudService? _cloudService;
         public IEnumerable<TerneoDeviceConfig>? Devices { get; set; }
         public CloudSettings? Cloud { get; set; }
 
         public override void Initialize()
         {
-            if (Cloud != null)
-            {
-                _cloudService = new CloudService(Cloud);
-                var result = _cloudService.LoginAsync().GetAwaiter().GetResult();
-                _cloudService.GetDevicesAsync().GetAwaiter().GetResult();
-            }
-            
+            InitializeCloudApi().GetAwaiter().GetResult();
+
             _scanner.OnNewDeviceInfoReceived += Scanner_OnDeviceInfoReceived;
             Log("TERNEO: Starting discovery");
             _scanner.Start();
@@ -35,7 +32,16 @@ namespace TerneoIntegration
                 .Subscribe(async e => await OnHaClimateTemperatureSet(e));
             EventChanges.Where(e => e.Event == "set_hvac_mode" && e.Domain == "climate")
                 .Subscribe(async e => await OnHaHvacModeSet(e));
-            
+        }
+
+        private async Task InitializeCloudApi()
+        {
+            if (Cloud == null) return;
+
+            _cloudService = new CloudService(Cloud);
+            var isSucceed = await _cloudService.LoginAsync();
+            if (isSucceed)
+                _cloudDevices = await _cloudService.GetDevicesAsync();
         }
 
         private async Task OnHaHvacModeSet(RxEvent e)
@@ -47,7 +53,7 @@ namespace TerneoIntegration
                 !data.ContainsKey("entity_id") ||
                 !_onlineDevices.ContainsKey(data["entity_id"]))
                 return;
-            
+
             data.TryGetValue("hvac_mode", out var hvacMode);
             if (string.IsNullOrEmpty(hvacMode)) return;
 
@@ -61,7 +67,7 @@ namespace TerneoIntegration
                     return;
                 }
             }
-            
+
             if (hvacMode == "heat")
             {
                 var isSucceed = await device.PowerOn();
@@ -71,7 +77,8 @@ namespace TerneoIntegration
                     return;
                 }
             }
-            
+
+            await UpdateHaEntityState(data["entity_id"]);
             Log($"TERNEO: Set hvac mode to {hvacMode} on device {data["entity_id"]}");
         }
 
@@ -97,6 +104,7 @@ namespace TerneoIntegration
                 return;
             }
 
+            await UpdateHaEntityState(data["entity_id"]);
             Log($"TERNEO: Set temperature {temperature} on device {data["entity_id"]}");
         }
 
@@ -120,53 +128,81 @@ namespace TerneoIntegration
 
             await UpdateHaEntityState(entityName);
 
-            async void RegularUpdate() => await UpdateHaEntityState(entityName);
-            SetInterval(RegularUpdate, 10000);
+            async void RegularUpdate()
+            {
+                await UpdateHaEntityState(entityName);
+            }
+
+            SetInterval(RegularUpdate, 60000);
         }
 
         private async Task UpdateHaEntityState(string entityName)
         {
-            TerneoDevice device = _onlineDevices[entityName];
+            ITerneoTelemetry? telemetry = await GetTelemetry(entityName);
+
+            if (telemetry == null) return;
             
+            var action = telemetry.PowerOff ? "off" : telemetry.Heating ? "heating" : "idle";
+            var state = action == "off" ? "off" : "heat";
+
+            const int minTemperature = 5;
+            const int maxTemperature = 45;
+            var temperature = Math.Round(telemetry.CurrentTemperature, 1);
+            if (temperature is < minTemperature or > maxTemperature)
+            {
+                LogError($"TERNEO: Wrong temperature, value {temperature} out of min/max temperature");
+                return;
+            }
+
+            SetState(entityName, state, new
+            {
+                hvac_modes = new[] {"heat", "off"},
+                min_temp = minTemperature,
+                max_temp = maxTemperature,
+                target_temp_step = 1,
+                current_temperature = temperature,
+                temperature = telemetry.TargetTemperature,
+                supported_features = 1,
+                hvac_action = action,
+                hvac_mode = state
+            });
+
+            Log($"TERNEO: entity {entityName} set state {state} and read temperature {temperature}");
+        }
+
+        private async Task<ITerneoTelemetry?> GetTelemetry(string entityName)
+        {
+            TerneoDevice device = _onlineDevices[entityName];
+
             try
             {
-                var telemetry = await device.GetTelemetry();
-                var action = telemetry.PowerOff ? "off" : telemetry.Heating ? "heating" : "idle";
-                var state = action == "off" ? "off" : "heat";
-            
-                const int minTemperature = 5;
-                const int maxTemperature = 45;
-                var temperature = Math.Round(telemetry.FloorTemperature, 1);
-                if (temperature is < minTemperature or > maxTemperature)
-                {
-                    LogError($"TERNEO: Wrong temperature, value {temperature} out of min/max temperature");
-                    return;
-                }
-            
-                SetState(entityName, state, new
-                {
-                    hvac_modes = new[] {"heat", "off"},
-                    min_temp = minTemperature,
-                    max_temp = maxTemperature,
-                    target_temp_step = 1,
-                    current_temperature = temperature,
-                    temperature = telemetry.TargetTemperature,
-                    supported_features = 1,
-                    hvac_action = action,
-                    hvac_mode = state
-                });
-            
-                Log($"TERNEO: entity {entityName} set state {state} and read temperature {temperature}");
+                return await device.GetTelemetry();
             }
             catch (Exception e)
             {
-                LogError(e, $"TERNEO: Failed to update entity {entityName} state");
+                LogError(e, $"TERNEO: Failed to obtain telemetry for {entityName}");
             }
+
+            if (_cloudService == null || _cloudDevices == null || !_cloudDevices.Any()) return null;
+            
+            try
+            {
+                var cloudDevice = _cloudDevices.SingleOrDefault(d => d.SerialNumber == device.SerialNumber);
+                if (cloudDevice == null) return null;
+                var result = await _cloudService.GetDeviceAsync(cloudDevice.Id);
+                return result?.Telemetry;
+            }
+            catch (Exception e)
+            {
+                LogError(e, $"TERNEO: Failed to obtain telemetry for {entityName}");
+            }
+
+            return null;
         }
-        
-        public static System.Timers.Timer SetInterval(Action action, int interval)
+
+        public static Timer SetInterval(Action action, int interval)
         {
-            System.Timers.Timer tmr = new();
+            Timer tmr = new();
             tmr.Elapsed += (sender, args) => action();
             tmr.AutoReset = true;
             tmr.Interval = interval;

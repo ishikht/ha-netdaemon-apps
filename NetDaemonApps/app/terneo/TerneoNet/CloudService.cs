@@ -1,9 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
+using JsonEasyNavigation;
 using Newtonsoft.Json;
 
 namespace TerneoIntegration.TerneoNet
@@ -22,48 +23,64 @@ namespace TerneoIntegration.TerneoNet
         public async Task<bool> LoginAsync()
         {
             var httpClient = new HttpClient();
-            
+
             var request = new {email = _settings.Email, password = _settings.Password};
             var jsonRequest = JsonConvert.SerializeObject(request);
-            
-            httpClient.DefaultRequestHeaders
-                .Accept
-                .Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            var response = await httpClient.PostAsync($"{ApiBaseUrl}/login/", 
-                new StringContent(jsonRequest,
-                    Encoding.UTF8, 
-                    "application/json"));
+
+            var response = await httpClient.PostAsync($"{ApiBaseUrl}/login/",
+                new StringContent(jsonRequest, Encoding.UTF8, "application/json"));
+
             if (response.IsSuccessStatusCode)
             {
-                var json = await response.Content.ReadAsStringAsync();
-                var result = JsonConvert.DeserializeObject<Dictionary<string, string>>(json);
-                if (result == null || !result.ContainsKey("access_token")) return false;
-                _accessToken = result["access_token"];
+                var jsonDocument = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+
+                var nav = jsonDocument.ToNavigation();
+                if (!nav["access_token"].Exist) return false;
+
+                _accessToken = nav["access_token"].GetStringOrDefault();
                 return !string.IsNullOrEmpty(_accessToken);
             }
 
             return false;
         }
-        
-        
-        public async Task<bool> GetDevicesAsync()
+
+
+        public async Task<IEnumerable<CloudDevice>?> GetDevicesAsync()
         {
             var httpClient = new HttpClient();
-            
-            var request = new {email = _settings.Email, password = _settings.Password};
-            var jsonRequest = JsonConvert.SerializeObject(request);
-            
             httpClient.DefaultRequestHeaders.Add("Authorization", "Token " + _accessToken);
+
             var response = await httpClient.GetAsync($"{ApiBaseUrl}/device/");
             if (response.IsSuccessStatusCode)
             {
-                var json = await response.Content.ReadAsStringAsync();
-                var result = JsonConvert.DeserializeObject<Dictionary<string, string>>(json);
-                
-                return !string.IsNullOrEmpty(_accessToken);
+                var jsonDocument = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+                var nav = jsonDocument.ToNavigation();
+
+                var devicesArrayItem = nav["results"];
+                if (!devicesArrayItem.Exist || !devicesArrayItem.IsEnumerable || devicesArrayItem.Count == 0)
+                    return null;
+
+                var devices = devicesArrayItem.Map<List<CloudDevice>>();
+
+                return devices;
             }
 
-            return false;
+            return null;
+        }
+
+        public async Task<CloudDevice?> GetDeviceAsync(int id)
+        {
+            var httpClient = new HttpClient();
+            httpClient.DefaultRequestHeaders.Add("Authorization", "Token " + _accessToken);
+
+            var response = await httpClient.GetAsync($"{ApiBaseUrl}/device/{id}/");
+            if (response.IsSuccessStatusCode)
+            {
+                var jsonDocument = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+                return jsonDocument.Deserialize<CloudDevice>();
+            }
+
+            return null;
         }
     }
 }

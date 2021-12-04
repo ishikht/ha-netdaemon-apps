@@ -3,20 +3,15 @@ using TerneoIntegration.TerneoNet.JsonConverters;
 
 namespace TerneoIntegration.TerneoNet
 {
-    public class TerneoTelemetry
+    public class TerneoTelemetry : ITerneoTelemetry
     {
-        [JsonProperty("sn")]
-        public string SerialNumber { get; set; }
-        
         [JsonProperty("t.1")]
-        [JsonConverter(typeof(RawTemperatureConverter))]
-        public double FloorTemperature { get; set; }
-        //public double FloorTemperatureC => FloorTemperature / 16.0;
-        
+        [JsonConverter(typeof(RawTemperatureToDecimalConverter))]
+        public decimal CurrentTemperature { get; set; }
+
         [JsonProperty("t.5")]
-        [JsonConverter(typeof(RawTemperatureConverter))]
-        public double TargetTemperature { get; set; }
-        //public double SetTemperatureC => SetTemperature / 16.0;
+        [JsonConverter(typeof(RawTemperatureToIntConverter))]
+        public int TargetTemperature { get; set; }
 
         [JsonProperty("f.0")]
         [JsonConverter(typeof(IntToBoolConverter))]
