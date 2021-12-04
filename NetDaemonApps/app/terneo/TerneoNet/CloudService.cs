@@ -12,6 +12,7 @@ namespace TerneoIntegration.TerneoNet
     {
         private const string ApiBaseUrl = "https://my.terneo.ua/api";
         private readonly CloudSettings _settings;
+        private string _accessToken;
 
         public CloudService(CloudSettings settings)
         {
@@ -37,8 +38,29 @@ namespace TerneoIntegration.TerneoNet
                 var json = await response.Content.ReadAsStringAsync();
                 var result = JsonConvert.DeserializeObject<Dictionary<string, string>>(json);
                 if (result == null || !result.ContainsKey("access_token")) return false;
-                var accessToken = result["access_token"];
-                return !string.IsNullOrEmpty(accessToken);
+                _accessToken = result["access_token"];
+                return !string.IsNullOrEmpty(_accessToken);
+            }
+
+            return false;
+        }
+        
+        
+        public async Task<bool> GetDevicesAsync()
+        {
+            var httpClient = new HttpClient();
+            
+            var request = new {email = _settings.Email, password = _settings.Password};
+            var jsonRequest = JsonConvert.SerializeObject(request);
+            
+            httpClient.DefaultRequestHeaders.Add("Authorization", "Token " + _accessToken);
+            var response = await httpClient.GetAsync($"{ApiBaseUrl}/device/");
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<Dictionary<string, string>>(json);
+                
+                return !string.IsNullOrEmpty(_accessToken);
             }
 
             return false;

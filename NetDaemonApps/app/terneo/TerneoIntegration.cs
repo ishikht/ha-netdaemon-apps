@@ -23,6 +23,7 @@ namespace TerneoIntegration
             {
                 _cloudService = new CloudService(Cloud);
                 var result = _cloudService.LoginAsync().GetAwaiter().GetResult();
+                _cloudService.GetDevicesAsync().GetAwaiter().GetResult();
             }
             
             _scanner.OnNewDeviceInfoReceived += Scanner_OnDeviceInfoReceived;
@@ -34,6 +35,7 @@ namespace TerneoIntegration
                 .Subscribe(async e => await OnHaClimateTemperatureSet(e));
             EventChanges.Where(e => e.Event == "set_hvac_mode" && e.Domain == "climate")
                 .Subscribe(async e => await OnHaHvacModeSet(e));
+            
         }
 
         private async Task OnHaHvacModeSet(RxEvent e)
