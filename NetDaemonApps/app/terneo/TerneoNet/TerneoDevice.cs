@@ -10,5 +10,8 @@
 
         public string Ip { get; }
         public string SerialNumber { get; }
+        
+        
+        public override string ToString() => $"IP: {Ip}, sn: {SerialNumber}";
     }
 }

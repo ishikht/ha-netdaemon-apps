@@ -9,6 +9,7 @@ using JsonEasyNavigation;
 using NetDaemon.Common.Reactive;
 using Newtonsoft.Json;
 using TerneoIntegration.TerneoNet;
+using TerneoIntegration.Utils;
 
 namespace TerneoIntegration
 {
@@ -18,6 +19,7 @@ namespace TerneoIntegration
         
         private CloudService? _cloudService;
         private readonly LocalService _localService = new LocalService();
+        private readonly Cache<string, object> _paramsCache = new();
         public IEnumerable<TerneoDeviceConfig>? Devices { get; set; }
         public CloudSettings? Cloud { get; set; }
 
@@ -40,46 +42,35 @@ namespace TerneoIntegration
 
         private async Task OnHaHvacModeSet(RxEvent e)
         {
-            var json = e.Data?.ToString();
-            Dictionary<string, string> data = JsonConvert.DeserializeObject<Dictionary<string, string>>(json);
+            var jsonElement = (JsonElement)e.Data!;
+            var nav = jsonElement.ToNavigation();
+            
+            var entityItem = nav["entity_id"];
+            var hvacModeItem = nav["hvac_mode"];
 
-            if (data == null ||
-                !data.ContainsKey("entity_id") ||
-                !_onlineDevices.ContainsKey(data["entity_id"]))
+            if (!entityItem.Exist || !hvacModeItem.Exist) return;
+
+            var hvacMode = hvacModeItem.GetStringOrDefault();
+
+            var entity = entityItem.GetStringOrDefault();
+            _onlineDevices.TryGetValue(entity, out var device);
+            if (device == null ) return;
+
+            var isSucceed = await SetPowerOnOff(device.SerialNumber,hvacMode == "off");
+            if (!isSucceed)
+            {
+                LogError($"TERNEO: Set hvac mode to {hvacMode} for device {entity}");
                 return;
-
-            data.TryGetValue("hvac_mode", out var hvacMode);
-            if (string.IsNullOrEmpty(hvacMode)) return;
-
-            var device = _onlineDevices[data["entity_id"]];
-            if (hvacMode == "off")
-            {
-                var isSucceed = await _localService.PowerOff(device.SerialNumber);
-                if (!isSucceed)
-                {
-                    LogError($"TERNEO: Failed to power off the device {data["entity_id"]}");
-                    return;
-                }
             }
-
-            if (hvacMode == "heat")
-            {
-                var isSucceed = await _localService.PowerOn(device.SerialNumber);
-                if (!isSucceed)
-                {
-                    LogError($"TERNEO: Failed to power on the device {data["entity_id"]}");
-                    return;
-                }
-            }
-
-            await UpdateHaEntityState(data["entity_id"]);
-            Log($"TERNEO: Set hvac mode to {hvacMode} on device {data["entity_id"]}");
+            
+            _paramsCache.Store($"{entity}_hvac", hvacMode, TimeSpan.FromMinutes(2));
+            await UpdateHaEntityState(entity);
+            Log($"TERNEO: Set hvac mode to {hvacMode} for device {entity}");
         }
 
         private async Task OnHaClimateTemperatureSet(RxEvent e)
         {
-            if (e.Data == null ) return;
-            var jsonElement = (JsonElement)e.Data;
+            var jsonElement = (JsonElement)e.Data!;
             var nav = jsonElement.ToNavigation();
             
             var entityItem = nav["entity_id"];
@@ -127,9 +118,16 @@ namespace TerneoIntegration
 
             if (telemetry == null) return;
             
-            var action = telemetry.PowerOff ? "off" : telemetry.Heating ? "heating" : "idle";
-            var state = action == "off" ? "off" : "heat";
+            string action = telemetry.PowerOff ? "off" : telemetry.Heating ? "heating" : "idle";
+            string state = action == "off" ? "off" : "heat";
 
+            var hvacCache = _paramsCache.Get($"{entityName}_hvac")?.ToString();
+            if (!string.IsNullOrEmpty(hvacCache))
+            {
+                action = hvacCache == "off" ? "off" : telemetry.Heating ? "heating" : "idle";
+                state = action == "off" ? "off" : "heat";
+            }
+            
             const int minTemperature = 5;
             const int maxTemperature = 45;
             var temperature = Math.Round(telemetry.CurrentTemperature, 1);
@@ -155,6 +153,17 @@ namespace TerneoIntegration
             LogDebug($"TERNEO: entity {entityName} set state {state} and read temperature {temperature}");
         }
 
+        private async Task<bool> SetPowerOnOff(string serialNumber, bool isOff, ITerneoService? service = null)
+        {
+            return service switch
+            {
+                null when _cloudService == null => await SetPowerOnOff(serialNumber, isOff, _localService),
+                null => await SetPowerOnOff(serialNumber, isOff, _localService) ||
+                        await SetPowerOnOff(serialNumber, isOff, _cloudService),
+                _ => await service.PowerOnOff(serialNumber, isOff)
+            };
+        }
+        
         private async Task<bool> SetTemperature(string serialNumber, int temperature, ITerneoService? service = null)
         {
             return service switch

@@ -6,5 +6,7 @@ namespace TerneoIntegration.TerneoNet
     {
         Task<ITerneoTelemetry?> GetTelemetryAsync(string serialNumber);
         Task<bool> SetTemperature(string serialNumber, int temperature);
+
+        Task<bool> PowerOnOff(string serialNumber, bool isOff);
     }
 }

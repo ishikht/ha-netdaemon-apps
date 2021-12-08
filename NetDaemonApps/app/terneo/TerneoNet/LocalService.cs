@@ -100,7 +100,7 @@ namespace TerneoIntegration.TerneoNet
             return await PowerOnOff(serialNumber, true);
         }
 
-        private async Task<bool> PowerOnOff(string serialNumber, bool isOff)
+        public async Task<bool> PowerOnOff(string serialNumber, bool isOff)
         {
             var device = _onlineDevices.SingleOrDefault(d => d.SerialNumber == serialNumber);
             if (device == null) return false;
