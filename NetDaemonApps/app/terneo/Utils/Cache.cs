@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 namespace TerneoIntegration.Utils
 {
+    //https://stackoverflow.com/a/47874342/452709
     public class Cache<TKey, TValue> where TKey:notnull  
     {
         private readonly Dictionary<TKey, CacheItem<TValue?>> _cache = new();
