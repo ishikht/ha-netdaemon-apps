@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -13,14 +14,22 @@ namespace TerneoIntegration.TerneoNet
     {
         private const string ApiBaseUrl = "https://my.terneo.ua/api";
         private readonly CloudSettings _settings;
-        private string _accessToken;
+        private string? _accessToken;
+        private IEnumerable<CloudDevice>? _cloudDevices;
 
         public CloudService(CloudSettings settings)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         }
 
-        public async Task<bool> LoginAsync()
+        public async Task InitializeAsync()
+        {
+            var isSucceed = await LoginAsync();
+            if (isSucceed)
+                _cloudDevices = await GetDevicesAsync();
+        }
+
+        private async Task<bool> LoginAsync()
         {
             var httpClient = new HttpClient();
 
@@ -45,7 +54,7 @@ namespace TerneoIntegration.TerneoNet
         }
 
 
-        public async Task<IEnumerable<CloudDevice>?> GetDevicesAsync()
+        private async Task<IEnumerable<CloudDevice>?> GetDevicesAsync()
         {
             var httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.Add("Authorization", "Token " + _accessToken);
@@ -68,7 +77,15 @@ namespace TerneoIntegration.TerneoNet
             return null;
         }
 
-        public async Task<CloudDevice?> GetDeviceAsync(int id)
+        public async Task<ITerneoTelemetry?> GetTelemetryAsync(string serialNumber)
+        {
+            var cloudDevice = _cloudDevices?.SingleOrDefault(d => d.SerialNumber == serialNumber);
+            if (cloudDevice == null) return null;
+            var result = await GetDeviceAsync(cloudDevice.Id);
+            return result?.Telemetry;
+        }
+
+        private async Task<CloudDevice?> GetDeviceAsync(int id)
         {
             var httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.Add("Authorization", "Token " + _accessToken);
@@ -83,7 +100,14 @@ namespace TerneoIntegration.TerneoNet
             return null;
         }
         
-        public async Task<bool> SetTemperature(int id, int temperature)
+        public async Task SetTemperature(string serialNumber, int temperature)
+        {
+            var cloudDevice = _cloudDevices?.SingleOrDefault(d => d.SerialNumber == serialNumber);
+            if (cloudDevice == null) return;
+            await SetTemperature(cloudDevice.Id, temperature);
+        }
+
+        private async Task<bool> SetTemperature(int id, int temperature)
         {
             var httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.Add("Authorization", "Token " + _accessToken);

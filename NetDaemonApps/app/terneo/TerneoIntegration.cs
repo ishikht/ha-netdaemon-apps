@@ -12,36 +12,28 @@ namespace TerneoIntegration
 {
     public class TerneoIntegration : NetDaemonRxApp
     {
-        private readonly Dictionary<string, TerneoDevice> _onlineDevices = new();
-        private readonly TerneoScanner _scanner = new();
-        private IEnumerable<CloudDevice>? _cloudDevices;
+        private readonly Dictionary<string, TerneoDevice> _onlineDevices = new(); 
+        
         private CloudService? _cloudService;
+        private readonly LocalService _localService = new LocalService();
         public IEnumerable<TerneoDeviceConfig>? Devices { get; set; }
         public CloudSettings? Cloud { get; set; }
 
         public override void Initialize()
         {
-            InitializeCloudApi().GetAwaiter().GetResult();
+            //Init cloud Service
+            if (Cloud == null) return;
+            _cloudService = new CloudService(Cloud);
+            _cloudService.InitializeAsync().GetAwaiter().GetResult();
 
-            _scanner.OnNewDeviceInfoReceived += Scanner_OnDeviceInfoReceived;
-            Log("TERNEO: Starting discovery");
-            _scanner.Start();
-            Log("TERNEO: Discovery started");
-
+            //Init local Service
+            _localService.OnDeviceDiscovered += LocalServiceOnOnDeviceDiscovered;
+            _localService.Initialize().GetAwaiter().GetResult();
+            
             EventChanges.Where(e => e.Event == "set_temperature" && e.Domain == "climate")
                 .Subscribe(async e => await OnHaClimateTemperatureSet(e));
             EventChanges.Where(e => e.Event == "set_hvac_mode" && e.Domain == "climate")
                 .Subscribe(async e => await OnHaHvacModeSet(e));
-        }
-
-        private async Task InitializeCloudApi()
-        {
-            if (Cloud == null) return;
-
-            _cloudService = new CloudService(Cloud);
-            var isSucceed = await _cloudService.LoginAsync();
-            if (isSucceed)
-                _cloudDevices = await _cloudService.GetDevicesAsync();
         }
 
         private async Task OnHaHvacModeSet(RxEvent e)
@@ -60,7 +52,7 @@ namespace TerneoIntegration
             var device = _onlineDevices[data["entity_id"]];
             if (hvacMode == "off")
             {
-                var isSucceed = await device.PowerOff();
+                var isSucceed = await _localService.PowerOff(device.SerialNumber);
                 if (!isSucceed)
                 {
                     LogError($"TERNEO: Failed to power off the device {data["entity_id"]}");
@@ -70,7 +62,7 @@ namespace TerneoIntegration
 
             if (hvacMode == "heat")
             {
-                var isSucceed = await device.PowerOn();
+                var isSucceed = await _localService.PowerOn(device.SerialNumber);
                 if (!isSucceed)
                 {
                     LogError($"TERNEO: Failed to power on the device {data["entity_id"]}");
@@ -97,29 +89,21 @@ namespace TerneoIntegration
             int.TryParse(temperatureStr, out var temperature);
 
             var device = _onlineDevices[data["entity_id"]];
-            var isSucceed = await device.SetTemperature(temperature);
+            var isSucceed = await _localService.SetTemperature(device.SerialNumber, temperature);
             if (!isSucceed)
             {
-                LogError($"TERNEO: Failed to set temperature {temperature} on device {data["entity_id"]}");
-                if (_cloudService == null || _cloudDevices == null || !_cloudDevices.Any()) return;
-                var cloudDevice = _cloudDevices.SingleOrDefault(d => d.SerialNumber == device.SerialNumber);
-                if (cloudDevice == null) return;
-                await _cloudService.SetTemperature(cloudDevice.Id, temperature);
+                LogWarning($"TERNEO: Failed to set temperature {temperature} on device {data["entity_id"]}");
+                if (_cloudService == null) return;
+                await _cloudService.SetTemperature(device.SerialNumber, temperature);
                 return;
             }
 
             await UpdateHaEntityState(data["entity_id"]);
-            Log($"TERNEO: Set temperature {temperature} on device {data["entity_id"]}");
+            LogInformation($"TERNEO: Set temperature {temperature} on device {data["entity_id"]}");
         }
 
-        private async void Scanner_OnDeviceInfoReceived(object? sender, TerneoDeviceScanInfo e)
+        private async void LocalServiceOnOnDeviceDiscovered(object? sender, TerneoDevice e)
         {
-            if (string.IsNullOrEmpty(e.Ip) || string.IsNullOrEmpty(e.SerialNumber))
-            {
-                LogError("Failed to obtain IP or Serial number of device");
-                return;
-            }
-
             Log($"TERNEO: New Device Discovered {e}");
 
             var deviceConfig = Devices?.FirstOrDefault(d => d.ip == e.Ip && d.serialNumber == e.SerialNumber);
@@ -136,7 +120,6 @@ namespace TerneoIntegration
             {
                 await UpdateHaEntityState(entityName);
             }
-
             SetInterval(RegularUpdate, 60000);
         }
 
@@ -180,21 +163,18 @@ namespace TerneoIntegration
 
             try
             {
-                return await device.GetTelemetry();
+                return await _localService.GetTelemetry(device.SerialNumber);
             }
             catch (Exception e)
             {
-                LogError(e, $"TERNEO: Failed to obtain telemetry for {entityName}");
+                LogWarning(e, $"TERNEO: Failed to obtain telemetry for {entityName}");
             }
 
-            if (_cloudService == null || _cloudDevices == null || !_cloudDevices.Any()) return null;
+            if (_cloudService == null) return null;
             
             try
             {
-                var cloudDevice = _cloudDevices.SingleOrDefault(d => d.SerialNumber == device.SerialNumber);
-                if (cloudDevice == null) return null;
-                var result = await _cloudService.GetDeviceAsync(cloudDevice.Id);
-                return result?.Telemetry;
+                return await _cloudService.GetTelemetryAsync(device.SerialNumber);
             }
             catch (Exception e)
             {
@@ -204,7 +184,7 @@ namespace TerneoIntegration
             return null;
         }
 
-        public static System.Timers.Timer SetInterval(Action action, int interval)
+        private static System.Timers.Timer SetInterval(Action action, int interval)
         {
             System.Timers.Timer tmr = new();
             tmr.Elapsed += (sender, args) => action();
