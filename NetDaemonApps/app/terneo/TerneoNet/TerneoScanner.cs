@@ -10,7 +10,7 @@ namespace TerneoIntegration.TerneoNet
 {
     public class TerneoScanner
     {
-        private const ushort UDP_PORT = 23500;
+        private const ushort UdpPort = 23500;
         private readonly List<TerneoDeviceScanInfo> _devices = new();
 
         private bool _isRunning;
@@ -36,7 +36,7 @@ namespace TerneoIntegration.TerneoNet
             Stop();
             _isRunning = true;
             _devices.Clear();
-            _udpServer = new UdpClient(UDP_PORT);
+            _udpServer = new UdpClient(UdpPort);
             _udpListener = new Thread(UdpListenerThread!);
             _udpListener.Start(_udpServer);
         }

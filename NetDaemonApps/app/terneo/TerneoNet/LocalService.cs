@@ -11,7 +11,7 @@ using Newtonsoft.Json;
 
 namespace TerneoIntegration.TerneoNet
 {
-    public class LocalService
+    public class LocalService:ITerneoService
     {
         private const string ApiUri = "http://{0}/api.cgi";
 
@@ -21,21 +21,22 @@ namespace TerneoIntegration.TerneoNet
 
         public event EventHandler<TerneoDevice>? OnDeviceDiscovered;
 
-        public async Task Initialize()
+        public void Initialize()
         {
             _scanner.OnNewDeviceInfoReceived += Scanner_OnNewDeviceInfoReceived;
             _scanner.Start();
-
-            //Wait 2 minutes then stop the scanner
-            Task.Run(async () =>
+            
+            var delayedThread = new Thread(() =>
             {
-                await Task.Delay(TimeSpan.FromMinutes(2));
+                Thread.Sleep(TimeSpan.FromMinutes(2));
                 _scanner.Stop();
                 _scanner.OnNewDeviceInfoReceived -= Scanner_OnNewDeviceInfoReceived;
             });
+
+            delayedThread.Start();
         }
 
-        public async Task<TerneoTelemetry?> GetTelemetry(string serialNumber)
+        public async Task<ITerneoTelemetry?> GetTelemetryAsync(string serialNumber)
         {
             var device = _onlineDevices.SingleOrDefault(d => d.SerialNumber == serialNumber);
             if (device == null) return null;
@@ -93,24 +94,24 @@ namespace TerneoIntegration.TerneoNet
         {
             return await PowerOnOff(serialNumber, false);
         }
-        
+
         public async Task<bool> PowerOff(string serialNumber)
         {
-            return await PowerOnOff(serialNumber,true);
+            return await PowerOnOff(serialNumber, true);
         }
 
         private async Task<bool> PowerOnOff(string serialNumber, bool isOff)
         {
             var device = _onlineDevices.SingleOrDefault(d => d.SerialNumber == serialNumber);
             if (device == null) return false;
-            
+
             var httpClient = new HttpClient();
             await _semaphoreSlim.WaitAsync();
             try
             {
                 var response = await httpClient.PostAsJsonAsync(string.Format(ApiUri, device.Ip), new
                 {
-                    sn = device.SerialNumber, 
+                    sn = device.SerialNumber,
                     par = new[] {new dynamic[] {125, 7, (isOff ? 1 : 0).ToString()}}
                 });
                 if (response.IsSuccessStatusCode) return false;
@@ -128,7 +129,7 @@ namespace TerneoIntegration.TerneoNet
                 _semaphoreSlim.Release();
             }
         }
-        
+
         private void Scanner_OnNewDeviceInfoReceived(object? sender, TerneoDeviceScanInfo e)
         {
             if (string.IsNullOrEmpty(e.Ip) || string.IsNullOrEmpty(e.SerialNumber)) return;

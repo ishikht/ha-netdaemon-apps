@@ -10,7 +10,7 @@ using Newtonsoft.Json;
 
 namespace TerneoIntegration.TerneoNet
 {
-    public class CloudService
+    public class CloudService:ITerneoService
     {
         private const string ApiBaseUrl = "https://my.terneo.ua/api";
         private readonly CloudSettings _settings;
@@ -100,11 +100,11 @@ namespace TerneoIntegration.TerneoNet
             return null;
         }
         
-        public async Task SetTemperature(string serialNumber, int temperature)
+        public async Task<bool> SetTemperature(string serialNumber, int temperature)
         {
             var cloudDevice = _cloudDevices?.SingleOrDefault(d => d.SerialNumber == serialNumber);
-            if (cloudDevice == null) return;
-            await SetTemperature(cloudDevice.Id, temperature);
+            if (cloudDevice == null) return false;
+            return await SetTemperature(cloudDevice.Id, temperature);
         }
 
         private async Task<bool> SetTemperature(int id, int temperature)
