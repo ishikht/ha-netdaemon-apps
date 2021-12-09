@@ -1,12 +1,19 @@
-﻿using NetDaemon.Common.Reactive;
+﻿using System.Threading.Tasks;
+using MideaAcIntegration.MideaNet;
+using NetDaemon.Common;
+using NetDaemon.Common.Reactive;
 
 namespace MideaAcIntegration
 {
     public class MideaAcIntegration: NetDaemonRxApp
     {
-        public override void Initialize()
+        public string? Email { get; set; }
+        public string? Password { get; set; }
+        public override async Task InitializeAsync()
         {
-            base.Initialize();
+            var cloud = new MideaCloud(Email);
+            var result =  await cloud.GetLoginId();
+            
         }
     }
 }
