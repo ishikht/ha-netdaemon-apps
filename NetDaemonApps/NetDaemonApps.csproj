@@ -48,6 +48,9 @@
         <None Update="app\terneo\TerneoIntegration.yaml">
           <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
+        <None Update="app\midea-ac\MideaAcIntegration.yaml">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
         <!--<Content Include="app\**">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>-->
