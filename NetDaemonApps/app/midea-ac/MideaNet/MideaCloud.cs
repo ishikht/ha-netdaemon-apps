@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -23,7 +24,7 @@ namespace MideaAcIntegration.MideaNet
             _email = email;
         }
 
-        private async Task<JsonNavigationElement?> ApiRequestAsync(string endpoint, IDictionary<string, string> args)
+        private async Task<JsonNavigationElement?> ApiRequestAsync(string endpoint, IDictionary<string, string>? args)
         {
             var httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.Add("User-Agent", MideaConstants.UserAgent);
@@ -37,7 +38,8 @@ namespace MideaAcIntegration.MideaNet
                 {"language", MideaConstants.Language}
             };
 
-            foreach (var (key, value) in args) form.Add(key, value);
+            if (args != null)
+                foreach (var (key, value) in args) form.Add(key, value);
 
             // Add the sessionId if there is a valid session
             if (!string.IsNullOrEmpty(_sessionId))
@@ -91,6 +93,54 @@ namespace MideaAcIntegration.MideaNet
             _accessToken = session.Value["accessToken"].GetStringOrDefault();
             _sessionId = session.Value["sessionId"].GetStringOrDefault();
             _dataKey = MideaUtils.GenerateDataKey(_accessToken);
+        }
+
+        public async Task<IEnumerable<MideaDevice>?> GetUserDevicesList()
+        {
+            var result = await ApiRequestAsync("/appliance/user/list/get", null);
+            if (!result.HasValue) return null;
+            var listItem = result.Value["list"];
+            if (!listItem.Exist || !listItem.IsEnumerable) return null;
+
+            var devices = listItem.Map<List<MideaDevice>>();
+            return devices.Where(d => d.DeviceType == MideaConstants.DeviceTypeAc);
+        }
+
+        public async Task Update(MideaDevice device)
+        {
+            // STATUS ONLY OR POWER ON/OFF HEADER
+            int[] acDataHeader = new [] {90, 90, 1, 16, 89, 0, 32, 0, 80, 0, 0, 0, 169, 65, 48, 9, 14, 5, 20, 20, 213, 50, 1, 0, 0, 17, 0, 0, 0, 4, 2, 0, 0, 1, 0, 0, 0, 0, 0, 0};
+            
+            var data = acDataHeader.Concat(MideaConstants.UpdateCommandAirCon).ToArray();
+            await SendCommand(device, data);
+        }
+
+
+        private async Task SendCommand(MideaDevice device, int[] order)
+        {
+            var orderEncode =MideaUtils.Encode(order);
+            var orderEncrypt = MideaUtils.EncryptAes(orderEncode, _dataKey);
+            
+            var args = new Dictionary<string, string>
+            {
+                {"order", orderEncrypt},
+                {"funId","0000"},
+                {"applianceId",device.Id},
+                
+            };
+
+            var result = await ApiRequestAsync("/appliance/transparent/send", args);
+            if (!result.HasValue) return;
+            
+            var replyItem = result.Value["reply"];
+            if(!replyItem.Exist) return;
+
+            var replyStr = replyItem.GetStringOrDefault();
+            var decryptedReply = MideaUtils.DecryptAes(replyStr, _dataKey);
+            if (decryptedReply == null) return;
+            var decodedReply = MideaUtils.Decode(decryptedReply);
+            
+            var response = new MideaTelemetry(decodedReply);
         }
     }
 }

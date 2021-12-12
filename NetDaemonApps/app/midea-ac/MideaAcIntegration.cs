@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Linq;
+using System.Threading.Tasks;
 using MideaAcIntegration.MideaNet;
 using NetDaemon.Common;
 using NetDaemon.Common.Reactive;
@@ -13,6 +14,8 @@ namespace MideaAcIntegration
         {
             var cloud = new MideaCloud(Email, Password);
             await cloud.LoginAsync();
+            var devices = await cloud.GetUserDevicesList();
+
         }
     }
 }
