@@ -11,9 +11,8 @@ namespace MideaAcIntegration
         public string? Password { get; set; }
         public override async Task InitializeAsync()
         {
-            var cloud = new MideaCloud(Email);
-            var result =  await cloud.GetLoginId();
-            
+            var cloud = new MideaCloud(Email, Password);
+            await cloud.LoginAsync();
         }
     }
 }
