@@ -106,17 +106,17 @@ namespace MideaAcIntegration.MideaNet
             return devices.Where(d => d.DeviceType == MideaConstants.DeviceTypeAc);
         }
 
-        public async Task Update(MideaDevice device)
+        public async Task<MideaTelemetry> GetTelemetry(MideaDevice device)
         {
             // STATUS ONLY OR POWER ON/OFF HEADER
             int[] acDataHeader = new [] {90, 90, 1, 16, 89, 0, 32, 0, 80, 0, 0, 0, 169, 65, 48, 9, 14, 5, 20, 20, 213, 50, 1, 0, 0, 17, 0, 0, 0, 4, 2, 0, 0, 1, 0, 0, 0, 0, 0, 0};
             
-            var data = acDataHeader.Concat(MideaConstants.UpdateCommandAirCon).ToArray();
-            await SendCommand(device, data);
+            var data = acDataHeader.Concat(MideaConstants.GetTelemetryCommand).ToArray();
+            return await SendCommand(device, data);
         }
 
 
-        private async Task SendCommand(MideaDevice device, int[] order)
+        private async Task<MideaTelemetry> SendCommand(MideaDevice device, int[] order)
         {
             var orderEncode =MideaUtils.Encode(order);
             var orderEncrypt = MideaUtils.EncryptAes(orderEncode, _dataKey);
@@ -126,21 +126,20 @@ namespace MideaAcIntegration.MideaNet
                 {"order", orderEncrypt},
                 {"funId","0000"},
                 {"applianceId",device.Id},
-                
             };
 
             var result = await ApiRequestAsync("/appliance/transparent/send", args);
-            if (!result.HasValue) return;
+            if (!result.HasValue) return null;
             
             var replyItem = result.Value["reply"];
-            if(!replyItem.Exist) return;
+            if(!replyItem.Exist) return null;
 
             var replyStr = replyItem.GetStringOrDefault();
             var decryptedReply = MideaUtils.DecryptAes(replyStr, _dataKey);
-            if (decryptedReply == null) return;
+            if (decryptedReply == null) return null;
             var decodedReply = MideaUtils.Decode(decryptedReply);
             
-            var response = new MideaTelemetry(decodedReply);
+            return new MideaTelemetry(decodedReply);
         }
     }
 }

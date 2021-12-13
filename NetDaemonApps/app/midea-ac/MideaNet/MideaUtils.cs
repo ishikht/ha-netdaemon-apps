@@ -83,7 +83,7 @@ namespace MideaAcIntegration.MideaNet
             string md5AppKey = GetHash(sha256Hash, MideaConstants.AppKey);
             //AesManaged
             var sub = md5AppKey.Substring(0, 16);
-            return Decrypt(accessToken, sub);
+            return Decrypt(accessToken, sub, true);
         }
 
         public static string EncryptAes(int[] query, string dataKey)
@@ -98,35 +98,18 @@ namespace MideaAcIntegration.MideaNet
         {
             if (string.IsNullOrEmpty(reply) || string.IsNullOrEmpty(dataKey)) return null;
 
-            var result = Decrypt2(reply, dataKey);
+            var result = Decrypt(reply, dataKey);
             return result.Split(",").Select(s =>
             {
-                var isSucceeded = int.TryParse(s, out var result);
-                return isSucceeded == true ? result : 0;
+                var isSucceeded = int.TryParse(s, out var i);
+                return isSucceeded ? i : 0;
             }).ToArray();
         }
 
         //https://stackoverflow.com/questions/47441725/aes-128-bit-with-ecb-ciphermode-algorithm-decrypts-correctly-with-an-invalid-key
-        private static string Decrypt(string text, string keyStr)
+        private static string Decrypt(string text, string keyStr, bool smallBlock = false)
         {
-            var src = FromHexString(text);
-
-            Aes aes = Aes.Create();
-            byte[] key = Encoding.ASCII.GetBytes(keyStr);
-            aes.KeySize = 128;
-            aes.Padding = PaddingMode.None;
-            aes.Mode = CipherMode.ECB;
-
-            using ICryptoTransform decrypt = aes.CreateDecryptor(key, null);
-            byte[] dest = decrypt.TransformFinalBlock(src, 0, src.Length);
-            decrypt.Dispose();
-
-            return Encoding.UTF8.GetString(dest);
-        }
-        
-        private static string Decrypt2(string text, string keyStr)
-        {
-            var src = FromHexString2(text);
+            var src = FromHexString(text, smallBlock);
 
             Aes aes = Aes.Create();
             byte[] key = Encoding.ASCII.GetBytes(keyStr);
@@ -160,19 +143,10 @@ namespace MideaAcIntegration.MideaNet
         }
 
         //https://stackoverflow.com/a/27363456/452709
-        private static byte[] FromHexString2(string text)
+        private static byte[] FromHexString(string text, bool smallBlock = false)
         {
-            var src = new byte[text.Length / 2];
-            for (var i = 0; i < src.Length; i++)
-                src[i] = Convert.ToByte(text.Substring(i * 2, 2), 16);
-
-            return src;
-        }
-        
-        //https://stackoverflow.com/a/27363456/452709
-        private static byte[] FromHexString(string text)
-        {
-            var src = new byte[text.Length / 4];
+            
+            var src = new byte[text.Length / (2 * (smallBlock ? 2 : 1))];
             for (var i = 0; i < src.Length; i++)
                 src[i] = Convert.ToByte(text.Substring(i * 2, 2), 16);
 

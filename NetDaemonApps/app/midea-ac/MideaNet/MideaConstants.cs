@@ -2,7 +2,7 @@
 {
     public struct MideaConstants
     {
-        public static readonly int[] UpdateCommandAirCon =
+        public static readonly int[] GetTelemetryCommand =
         {
             170, // 0         - Sync header
             32, // 1         - Message length request

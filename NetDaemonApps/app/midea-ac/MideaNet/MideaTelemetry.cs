@@ -13,8 +13,6 @@ namespace MideaAcIntegration.MideaNet
             _data = data.Skip(0x32).ToArray();
         }
 
-        public string Test => "";
-
         // Byte 0x01
         public bool PowerState => (_data[0x01] & 0x1) > 0;
 
