@@ -15,7 +15,13 @@ namespace MideaAcIntegration
             var cloud = new MideaCloud(Email, Password);
             await cloud.LoginAsync();
             var devices = await cloud.GetUserDevicesList();
-
+            var device = devices.Single(d => d.Id == "");
+            var telemetry = await cloud.GetTelemetry(device);
+            //om =4 Heat
+            //om =5 fan
+            //om =2 cold
+            //om =3 dry
+            //om =1 auto
         }
     }
 }
