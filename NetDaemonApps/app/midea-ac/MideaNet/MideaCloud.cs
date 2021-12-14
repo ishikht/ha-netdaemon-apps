@@ -106,17 +106,17 @@ namespace MideaAcIntegration.MideaNet
             return devices.Where(d => d.DeviceType == MideaConstants.DeviceTypeAc);
         }
 
-        public async Task<MideaTelemetry> GetTelemetry(MideaDevice device)
+        public async Task<MideaTelemetry> GetTelemetry(string id)
         {
             // STATUS ONLY OR POWER ON/OFF HEADER
             int[] acDataHeader = new [] {90, 90, 1, 16, 89, 0, 32, 0, 80, 0, 0, 0, 169, 65, 48, 9, 14, 5, 20, 20, 213, 50, 1, 0, 0, 17, 0, 0, 0, 4, 2, 0, 0, 1, 0, 0, 0, 0, 0, 0};
             
             var data = acDataHeader.Concat(MideaConstants.GetTelemetryCommand).ToArray();
-            return await SendCommand(device, data);
+            return await SendCommand(id, data);
         }
 
 
-        private async Task<MideaTelemetry> SendCommand(MideaDevice device, int[] order)
+        private async Task<MideaTelemetry?> SendCommand(string id, int[] order)
         {
             var orderEncode =MideaUtils.Encode(order);
             var orderEncrypt = MideaUtils.EncryptAes(orderEncode, _dataKey);
@@ -125,7 +125,7 @@ namespace MideaAcIntegration.MideaNet
             {
                 {"order", orderEncrypt},
                 {"funId","0000"},
-                {"applianceId",device.Id},
+                {"applianceId",id},
             };
 
             var result = await ApiRequestAsync("/appliance/transparent/send", args);
