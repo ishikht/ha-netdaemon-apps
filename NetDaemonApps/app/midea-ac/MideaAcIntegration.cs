@@ -99,7 +99,7 @@ namespace MideaAcIntegration
             command.PowerState = isOn;
             command.OperationalMode = operationalMode;
             command.TargetTemperature = setTemperature;
-            var telemetry = await _cloud.SendCommand(device.DeviceId!,PacketBuilder.Build(command));
+            var telemetry = await _cloud.SendCommand(device.DeviceId!, command.BuildPacket());
 
             if (telemetry == null) return; //Todo: reset to previous state, somehow
             UpdateEntityState(entityId, telemetry);
@@ -155,7 +155,7 @@ namespace MideaAcIntegration
             command.PowerState = isOn;
             command.OperationalMode = operationalMode;
             command.TargetTemperature = temperature;
-            var telemetry = await _cloud.SendCommand(device.DeviceId!,PacketBuilder.Build(command));
+            var telemetry = await _cloud.SendCommand(device.DeviceId!,command.BuildPacket());
 
             if (telemetry == null) return; //Todo: reset to previous state, somehow
             UpdateEntityState(entityId, telemetry);
@@ -212,7 +212,6 @@ namespace MideaAcIntegration
                 fan_mode= "Auto",
                 swing_mode= "Off",
                 supported_features = 1,
-                //hvac_action = hvac
                 hvac_mode = hvac
             });
             Log("MIDEA: Updated");

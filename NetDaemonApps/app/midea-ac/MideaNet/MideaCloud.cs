@@ -48,7 +48,7 @@ namespace MideaAcIntegration.MideaNet
             var sign = MideaUtils.GetSign(endpoint, form);
             form.Add("sign", sign);
 
-            var request = new HttpRequestMessage(HttpMethod.Post, "https://mapp.appsmb.com/v1" + endpoint)
+            var request = new HttpRequestMessage(HttpMethod.Post, ApiBaseUrl + endpoint)
                 {Content = new FormUrlEncodedContent(form)};
             var response = await httpClient.SendAsync(request);
             if (!response.IsSuccessStatusCode) return null;
