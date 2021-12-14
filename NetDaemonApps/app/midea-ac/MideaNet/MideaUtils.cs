@@ -21,8 +21,7 @@ namespace MideaAcIntegration.MideaNet
 
             return normalized.ToArray();
         }
-
-
+        
         public static int[] Decode(int[] data)
         {
             var normalized = new List<int>();
