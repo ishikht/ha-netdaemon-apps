@@ -18,7 +18,7 @@ public class MideaSetCommand
             _data[0x0b] |= value ? 0x42 : 0;
         }
     }
-    
+
     public bool PowerState
     {
         get => (_data[0x0b] & 0x01) > 0;
@@ -28,7 +28,7 @@ public class MideaSetCommand
             _data[0x0b] |= value ? 0x01 : 0;
         }
     }
-    
+
     public int OperationalMode
     {
         get => (_data[0x0c] & 0xe0) >> 5;
@@ -57,7 +57,7 @@ public class MideaSetCommand
         _data[0x01] = _data.Count;
         return _data.ToArray();
     }
-    
+
     public int[] BuildPacket()
     {
         var commandData = GetData();
@@ -74,7 +74,7 @@ public class MideaSetCommand
         // Set the packet length in the packet!
         packet[0x04] = packet.Count;
         return packet.ToArray();
-        
+
         int Checksum(int[] data)
         {
             return 255 - data.Aggregate(0, (a, b) => a + b) % 256 + 1;
