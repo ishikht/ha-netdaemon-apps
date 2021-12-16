@@ -81,12 +81,6 @@ public static class MideaUtils
 
     public static string GenerateDataKey(string accessToken)
     {
-        //To Verify:
-        //token: 532471446b5e7b7e61c9f97fb8b2de9cd0a56da5a07373989bf6c3af1b7ca893
-        //result: 9aa307eadde04289
-        //md5key: 2976338e76d8e610e23c5925495548a5
-        //slice: 2976338e76d8e610
-
         if (string.IsNullOrEmpty(accessToken)) return "";
 
         using var sha256Hash = MD5.Create();

@@ -72,29 +72,8 @@ public class MideaAcIntegration : NetDaemonRxApp
         var setTemperature = temperatureAttribute is long ? Convert.ToInt32(temperatureAttribute) : null;
         if (setTemperature == null) return;
 
-        var operationalMode = 0;
-        var isOn = true;
-        switch (hvacMode)
-        {
-            case "auto":
-                operationalMode = 1;
-                break;
-            case "cool":
-                operationalMode = 2;
-                break;
-            case "dry":
-                operationalMode = 3;
-                break;
-            case "heat":
-                operationalMode = 4;
-                break;
-            case "fan_only":
-                operationalMode = 5;
-                break;
-            case "off":
-                isOn = false;
-                break;
-        }
+        var (operationalMode, isOn) = GetOperationalModes(hvacMode);
+        if (operationalMode == 0 && isOn) return;
 
         var command = new MideaSetCommand();
         command.PowerState = isOn;
@@ -128,29 +107,8 @@ public class MideaAcIntegration : NetDaemonRxApp
         var hvacMode = State(entityId)?.State as string;
         if (hvacMode == null) return;
 
-        var operationalMode = 0;
-        var isOn = true;
-        switch (hvacMode)
-        {
-            case "auto":
-                operationalMode = 1;
-                break;
-            case "cool":
-                operationalMode = 2;
-                break;
-            case "dry":
-                operationalMode = 3;
-                break;
-            case "heat":
-                operationalMode = 4;
-                break;
-            case "fan_only":
-                operationalMode = 5;
-                break;
-            case "off":
-                isOn = false;
-                break;
-        }
+        var (operationalMode, isOn) = GetOperationalModes(hvacMode);
+        if (operationalMode == 0 && isOn) return;
 
         var command = new MideaSetCommand();
         command.PowerState = isOn;
@@ -178,25 +136,8 @@ public class MideaAcIntegration : NetDaemonRxApp
         const int minTemperature = 17;
         const int maxTemperature = 30;
 
-        var hvac = "";
-        switch (telemetry.OperationalMode)
-        {
-            case 1:
-                hvac = "auto";
-                break;
-            case 2:
-                hvac = "cool";
-                break;
-            case 3:
-                hvac = "dry";
-                break;
-            case 4:
-                hvac = "heat";
-                break;
-            case 5:
-                hvac = "fan_only";
-                break;
-        }
+        var opModeEnum = (OperationalModes) telemetry.OperationalMode;
+        var hvac = opModeEnum.ToString().ToLower();
 
         if (telemetry.PowerState == false) hvac = "off";
 
@@ -215,6 +156,27 @@ public class MideaAcIntegration : NetDaemonRxApp
             supported_features = 1,
             hvac_mode = hvac
         });
-        Log("MIDEA: Updated");
+        LogDebug(
+            $"MIDEA: Updated {entityId} set hvac: {hvac} indoor temp: {telemetry.IndoorTemperature} target temp: {telemetry.TargetTemperature}");
+    }
+
+    private (int operationalMode, bool isOn) GetOperationalModes(string hvacMode)
+    {
+        var operationalMode = 0;
+        var isOn = true;
+
+        var isParsed = Enum.TryParse(hvacMode, true, out OperationalModes enumOpMode);
+        if (!isParsed)
+        {
+            LogError($"MIDEA: Unknown hvac mode: {hvacMode}");
+            return (operationalMode, isOn);
+        }
+
+        if (enumOpMode == OperationalModes.Off)
+            isOn = false;
+        else
+            operationalMode = (int) enumOpMode;
+
+        return (operationalMode, isOn);
     }
 }
