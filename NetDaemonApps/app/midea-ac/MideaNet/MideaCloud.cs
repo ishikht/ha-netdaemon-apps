@@ -1,5 +1,7 @@
 ﻿using System.Text.Json;
 using JsonEasyNavigation;
+using Polly;
+using Polly.Wrap;
 
 namespace MideaAcIntegration.MideaNet;
 
@@ -22,8 +24,6 @@ public class MideaCloud
 
     private async Task<JsonNavigationElement?> ApiRequestAsync(string endpoint, IDictionary<string, string>? args)
     {
-        var httpClient = new HttpClient();
-        httpClient.DefaultRequestHeaders.Add("User-Agent", MideaConstants.UserAgent);
         var form = new Dictionary<string, string>
         {
             {"clientType", MideaConstants.ClientType},
@@ -45,20 +45,13 @@ public class MideaCloud
         var sign = MideaUtils.GetSign(endpoint, form);
         form.Add("sign", sign);
 
-        var request = new HttpRequestMessage(HttpMethod.Post, ApiBaseUrl + endpoint)
-            {Content = new FormUrlEncodedContent(form)};
-        var response = await httpClient.SendAsync(request);
-        if (!response.IsSuccessStatusCode) return null;
+        var apiRequestPolicy = BuildApiRequestPolicy();
 
-        var jsonDocument = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-        var nav = jsonDocument.ToNavigation();
-
-        if (!nav["errorCode"].Exist || nav["errorCode"].GetStringOrDefault() != "0")
-            return null; //TODO: Throw error
-        if (!nav["result"].Exist) return null;
-        return nav["result"];
+        var result = await apiRequestPolicy.ExecuteAsync(async () => 
+            await ExecuteApiRequestAsync(endpoint, form));
+        
+        return result;
     }
-
 
     private async Task<string> GetLoginIdAsync()
     {
@@ -141,5 +134,54 @@ public class MideaCloud
         var decodedReply = MideaUtils.Decode(decryptedReply);
 
         return new MideaTelemetry(decodedReply);
+    }
+    
+       private AsyncPolicyWrap BuildApiRequestPolicy()
+    {
+        var httpRequestErrorPolicy = Policy.Handle<HttpRequestException>().RetryAsync();
+        //The async reply does not exist.
+        var ignorePolicy = Policy.Handle<ApiException>(e => e.ErrorCode == "3176").RetryAsync();
+        var restartSessionPolicy = Policy
+            .Handle<ApiException>(e => e.ErrorCode == "3106") //Invalid Session
+            .Or<ApiException>(e => e.ErrorCode == "3004") //value is illegal
+            .Or<ApiException>(e => e.ErrorCode == "9999") //system error
+            .RetryAsync(async (e, c) =>
+            {
+                _sessionId = string.Empty;
+                await LoginAsync();
+            });
+        var restartFullPolicy = Policy.Handle<ApiException>(e => e.ErrorCode == "3144")
+            .RetryAsync(async (e, c) =>
+            {
+                _loginId = string.Empty;
+                _sessionId = string.Empty;
+                await LoginAsync();
+            });
+
+        var apiRequestPolicy = Policy.WrapAsync(httpRequestErrorPolicy,
+            ignorePolicy,
+            restartSessionPolicy,
+            restartFullPolicy);
+        return apiRequestPolicy;
+    }
+
+    private static async Task<JsonNavigationElement?> ExecuteApiRequestAsync(string endpoint,
+        Dictionary<string, string> form)
+    {
+        var httpClient = new HttpClient();
+        httpClient.DefaultRequestHeaders.Add("User-Agent", MideaConstants.UserAgent);
+        var request = new HttpRequestMessage(HttpMethod.Post, ApiBaseUrl + endpoint)
+            {Content = new FormUrlEncodedContent(form)};
+        var response = await httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode) throw new HttpRequestException("The request was not successful");
+
+        var jsonDocument = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        var nav = jsonDocument.ToNavigation();
+
+        if (!nav["errorCode"].Exist || nav["errorCode"].GetStringOrDefault() != "0")
+            throw new ApiException(nav["errorCode"].GetStringOrDefault(), nav["msg"].GetStringOrDefault());
+
+        if (!nav["result"].Exist) return null;
+        return nav["result"];
     }
 }
