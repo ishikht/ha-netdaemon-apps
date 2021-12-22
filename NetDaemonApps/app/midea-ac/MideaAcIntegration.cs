@@ -18,7 +18,7 @@ public class MideaAcIntegration : NetDaemonRxApp
     {
         try
         {
-            _cloud = new MideaCloud(Email, Password);
+            _cloud = new MideaCloud(this.Logger, Email, Password);
             await _cloud.LoginAsync();
             LogInformation("MIDEA: Login Succeeded");
         }
@@ -79,7 +79,7 @@ public class MideaAcIntegration : NetDaemonRxApp
         command.PowerState = isOn;
         command.OperationalMode = operationalMode;
         command.TargetTemperature = setTemperature;
-        var telemetry = await _cloud.SendCommand(device.DeviceId!, command.BuildPacket());
+        var telemetry = await _cloud.SendCommandAsync(device.DeviceId!, command.BuildPacket());
 
         if (telemetry == null) return; //Todo: reset to previous state, somehow
         UpdateEntityState(entityId, telemetry);
@@ -114,7 +114,7 @@ public class MideaAcIntegration : NetDaemonRxApp
         command.PowerState = isOn;
         command.OperationalMode = operationalMode;
         command.TargetTemperature = temperature;
-        var telemetry = await _cloud.SendCommand(device.DeviceId!, command.BuildPacket());
+        var telemetry = await _cloud.SendCommandAsync(device.DeviceId!, command.BuildPacket());
 
         if (telemetry == null) return; //Todo: reset to previous state, somehow
         UpdateEntityState(entityId, telemetry);

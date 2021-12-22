@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using JsonEasyNavigation;
+using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Wrap;
 
@@ -8,16 +9,20 @@ namespace MideaAcIntegration.MideaNet;
 public class MideaCloud
 {
     private const string ApiBaseUrl = "https://mapp.appsmb.com/v1";
+
     private readonly string _email;
+    private readonly ILogger _logger;
     private readonly string _password;
+    private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
+
     private string _accessToken;
     private string _dataKey;
-
     private string _loginId;
     private string _sessionId;
 
-    public MideaCloud(string email, string password)
+    public MideaCloud(ILogger logger, string email, string password)
     {
+        _logger = logger;
         _password = password;
         _email = email;
     }
@@ -45,12 +50,22 @@ public class MideaCloud
         var sign = MideaUtils.GetSign(endpoint, form);
         form.Add("sign", sign);
 
-        var apiRequestPolicy = BuildApiRequestPolicy();
+        var httpClient = new HttpClient();
+        httpClient.DefaultRequestHeaders.Add("User-Agent", MideaConstants.UserAgent);
+        var request = new HttpRequestMessage(HttpMethod.Post, ApiBaseUrl + endpoint)
+            {Content = new FormUrlEncodedContent(form)};
+        var response = await httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode) throw new HttpRequestException("The request was not successful");
 
-        var result = await apiRequestPolicy.ExecuteAsync(async () => 
-            await ExecuteApiRequestAsync(endpoint, form));
-        
-        return result;
+        var jsonDocument = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        var nav = jsonDocument.ToNavigation();
+
+        if (!nav["errorCode"].Exist || nav["errorCode"].GetStringOrDefault() != "0")
+            throw new ApiException(nav["errorCode"].GetStringOrDefault(), nav["msg"].GetStringOrDefault());
+
+        _logger.LogDebug($"Successfully executed {endpoint}");
+        if (!nav["result"].Exist) return null;
+        return nav["result"];
     }
 
     private async Task<string> GetLoginIdAsync()
@@ -98,19 +113,36 @@ public class MideaCloud
 
     public async Task<MideaTelemetry?> GetTelemetry(string id)
     {
-        // STATUS ONLY OR POWER ON/OFF HEADER
-        int[] acDataHeader =
+        await _semaphoreSlim.WaitAsync();
+        try
         {
-            90, 90, 1, 16, 89, 0, 32, 0, 80, 0, 0, 0, 169, 65, 48, 9, 14, 5, 20, 20, 213, 50, 1, 0, 0, 17, 0, 0, 0, 4,
-            2, 0, 0, 1, 0, 0, 0, 0, 0, 0
-        };
+            // STATUS ONLY OR POWER ON/OFF HEADER
+            int[] acDataHeader =
+            {
+                90, 90, 1, 16, 89, 0, 32, 0, 80, 0, 0, 0, 169, 65, 48, 9, 14, 5, 20, 20, 213, 50, 1, 0, 0, 17, 0, 0, 0,
+                4,
+                2, 0, 0, 1, 0, 0, 0, 0, 0, 0
+            };
 
-        var data = acDataHeader.Concat(MideaConstants.GetTelemetryCommand).ToArray();
-        return await SendCommand(id, data);
+            var data = acDataHeader.Concat(MideaConstants.GetTelemetryCommand).ToArray();
+            
+            var apiRequestPolicy = BuildApiRequestPolicy("telemetry");
+            return await apiRequestPolicy.ExecuteAsync(async () => await SendCommandAsync(id, data));
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "MIDEA: Failed to get telemetry");
+        }
+        finally
+        {
+            _semaphoreSlim.Release();
+        }
+
+        return null;
     }
 
 
-    public async Task<MideaTelemetry?> SendCommand(string id, int[] order)
+    public async Task<MideaTelemetry?> SendCommandAsync(string id, int[] order)
     {
         var orderEncode = MideaUtils.Encode(order);
         var orderEncrypt = MideaUtils.EncryptAes(orderEncode, _dataKey);
@@ -135,8 +167,8 @@ public class MideaCloud
 
         return new MideaTelemetry(decodedReply);
     }
-    
-       private AsyncPolicyWrap BuildApiRequestPolicy()
+
+    private AsyncPolicyWrap BuildApiRequestPolicy(string endpoint)
     {
         var httpRequestErrorPolicy = Policy.Handle<HttpRequestException>().RetryAsync();
         //The async reply does not exist.
@@ -145,43 +177,18 @@ public class MideaCloud
             .Handle<ApiException>(e => e.ErrorCode == "3106") //Invalid Session
             .Or<ApiException>(e => e.ErrorCode == "3004") //value is illegal
             .Or<ApiException>(e => e.ErrorCode == "9999") //system error
+            .Or<ApiException>(e => e.ErrorCode == "3144")
             .RetryAsync(async (e, c) =>
             {
-                _sessionId = string.Empty;
-                await LoginAsync();
-            });
-        var restartFullPolicy = Policy.Handle<ApiException>(e => e.ErrorCode == "3144")
-            .RetryAsync(async (e, c) =>
-            {
+                _logger.LogError($"Failed to execute {endpoint}, retrying (session reset)...");
                 _loginId = string.Empty;
                 _sessionId = string.Empty;
                 await LoginAsync();
             });
-
+        
         var apiRequestPolicy = Policy.WrapAsync(httpRequestErrorPolicy,
             ignorePolicy,
-            restartSessionPolicy,
-            restartFullPolicy);
+            restartSessionPolicy);
         return apiRequestPolicy;
-    }
-
-    private static async Task<JsonNavigationElement?> ExecuteApiRequestAsync(string endpoint,
-        Dictionary<string, string> form)
-    {
-        var httpClient = new HttpClient();
-        httpClient.DefaultRequestHeaders.Add("User-Agent", MideaConstants.UserAgent);
-        var request = new HttpRequestMessage(HttpMethod.Post, ApiBaseUrl + endpoint)
-            {Content = new FormUrlEncodedContent(form)};
-        var response = await httpClient.SendAsync(request);
-        if (!response.IsSuccessStatusCode) throw new HttpRequestException("The request was not successful");
-
-        var jsonDocument = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-        var nav = jsonDocument.ToNavigation();
-
-        if (!nav["errorCode"].Exist || nav["errorCode"].GetStringOrDefault() != "0")
-            throw new ApiException(nav["errorCode"].GetStringOrDefault(), nav["msg"].GetStringOrDefault());
-
-        if (!nav["result"].Exist) return null;
-        return nav["result"];
     }
 }
