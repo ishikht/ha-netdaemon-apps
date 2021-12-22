@@ -111,7 +111,37 @@ public class MideaCloud
         return devices.Where(d => d.DeviceType == MideaConstants.DeviceTypeAc);
     }
 
-    public async Task<MideaTelemetry?> GetTelemetry(string id)
+    public async Task<MideaTelemetry?> SetOperationalModeAsync(string deviceId,
+        OperationalMode operationalMode,
+        int targetTemperature)
+    {
+        await _semaphoreSlim.WaitAsync();
+        try
+        {
+            var command = new MideaSetCommand
+            {
+                PowerState = operationalMode != OperationalMode.Off,
+                OperationalMode = (int) operationalMode,
+                TargetTemperature = targetTemperature
+            };
+
+            var apiRequestPolicy = BuildApiRequestPolicy("setOpMode");
+            return await apiRequestPolicy.ExecuteAsync(async () =>
+                await SendCommandAsync(deviceId, command.BuildPacket()));
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "MIDEA: Failed to get telemetry");
+        }
+        finally
+        {
+            _semaphoreSlim.Release();
+        }
+
+        return null;
+    }
+
+    public async Task<MideaTelemetry?> GetTelemetryAsync(string deviceId)
     {
         await _semaphoreSlim.WaitAsync();
         try
@@ -125,9 +155,9 @@ public class MideaCloud
             };
 
             var data = acDataHeader.Concat(MideaConstants.GetTelemetryCommand).ToArray();
-            
+
             var apiRequestPolicy = BuildApiRequestPolicy("telemetry");
-            return await apiRequestPolicy.ExecuteAsync(async () => await SendCommandAsync(id, data));
+            return await apiRequestPolicy.ExecuteAsync(async () => await SendCommandAsync(deviceId, data));
         }
         catch (Exception e)
         {
@@ -185,7 +215,7 @@ public class MideaCloud
                 _sessionId = string.Empty;
                 await LoginAsync();
             });
-        
+
         var apiRequestPolicy = Policy.WrapAsync(httpRequestErrorPolicy,
             ignorePolicy,
             restartSessionPolicy);

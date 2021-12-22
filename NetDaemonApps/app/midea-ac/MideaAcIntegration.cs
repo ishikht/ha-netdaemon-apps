@@ -72,16 +72,12 @@ public class MideaAcIntegration : NetDaemonRxApp
         var setTemperature = temperatureAttribute is long ? Convert.ToInt32(temperatureAttribute) : null;
         if (setTemperature == null) return;
 
-        var (operationalMode, isOn) = GetOperationalModes(hvacMode);
-        if (operationalMode == 0 && isOn) return;
+        var operationalMode = GetOperationalModes(hvacMode);
+        if (operationalMode == null) return;
+        
+        var telemetry = await _cloud.SetOperationalModeAsync(device.DeviceId!, operationalMode.Value, setTemperature);
 
-        var command = new MideaSetCommand();
-        command.PowerState = isOn;
-        command.OperationalMode = operationalMode;
-        command.TargetTemperature = setTemperature;
-        var telemetry = await _cloud.SendCommandAsync(device.DeviceId!, command.BuildPacket());
-
-        if (telemetry == null) return; //Todo: reset to previous state, somehow
+        if (telemetry == null) return; //Todo: set unavailable state
         UpdateEntityState(entityId, telemetry);
         LogInformation($"MIDEA: device command sent for entity: {entityId}, hvac: {hvacMode}");
     }
@@ -107,16 +103,12 @@ public class MideaAcIntegration : NetDaemonRxApp
         var hvacMode = State(entityId)?.State as string;
         if (hvacMode == null) return;
 
-        var (operationalMode, isOn) = GetOperationalModes(hvacMode);
-        if (operationalMode == 0 && isOn) return;
-
-        var command = new MideaSetCommand();
-        command.PowerState = isOn;
-        command.OperationalMode = operationalMode;
-        command.TargetTemperature = temperature;
-        var telemetry = await _cloud.SendCommandAsync(device.DeviceId!, command.BuildPacket());
-
-        if (telemetry == null) return; //Todo: reset to previous state, somehow
+        var operationalMode = GetOperationalModes(hvacMode);
+        if (operationalMode == null) return;
+        
+        var telemetry = await _cloud.SetOperationalModeAsync(device.DeviceId!, operationalMode.Value, temperature);
+        
+        if (telemetry == null) return; //Todo: set unavailable state
         UpdateEntityState(entityId, telemetry);
         LogInformation($"MIDEA: device command sent for entity: {entityId}, temperature: {temperature}");
     }
@@ -126,7 +118,7 @@ public class MideaAcIntegration : NetDaemonRxApp
         if (_discoveredDevices == null || !_discoveredDevices.ContainsKey(entityId)) return;
         var deviceConfig = _discoveredDevices[entityId];
 
-        var telemetry = await _cloud.GetTelemetry(deviceConfig.DeviceId!);
+        var telemetry = await _cloud.GetTelemetryAsync(deviceConfig.DeviceId!);
         if (telemetry == null) return;
         UpdateEntityState(entityId, telemetry);
     }
@@ -136,7 +128,7 @@ public class MideaAcIntegration : NetDaemonRxApp
         const int minTemperature = 17;
         const int maxTemperature = 30;
 
-        var opModeEnum = (OperationalModes) telemetry.OperationalMode;
+        var opModeEnum = (OperationalMode) telemetry.OperationalMode;
         var hvac = opModeEnum.ToString().ToLower();
 
         if (telemetry.PowerState == false) hvac = "off";
@@ -160,23 +152,12 @@ public class MideaAcIntegration : NetDaemonRxApp
             $"MIDEA: Updated {entityId} set hvac: {hvac} indoor temp: {telemetry.IndoorTemperature} target temp: {telemetry.TargetTemperature}");
     }
 
-    private (int operationalMode, bool isOn) GetOperationalModes(string hvacMode)
+    private OperationalMode? GetOperationalModes(string hvacMode)
     {
-        var operationalMode = 0;
-        var isOn = true;
-
-        var isParsed = Enum.TryParse(hvacMode, true, out OperationalModes enumOpMode);
-        if (!isParsed)
-        {
-            LogError($"MIDEA: Unknown hvac mode: {hvacMode}");
-            return (operationalMode, isOn);
-        }
-
-        if (enumOpMode == OperationalModes.Off)
-            isOn = false;
-        else
-            operationalMode = (int) enumOpMode;
-
-        return (operationalMode, isOn);
+        var isParsed = Enum.TryParse(hvacMode, true, out OperationalMode enumOpMode);
+        if (isParsed) return enumOpMode;
+        
+        LogError($"MIDEA: Unknown hvac mode: {hvacMode}");
+        return null;
     }
 }

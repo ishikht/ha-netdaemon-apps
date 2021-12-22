@@ -1,6 +1,6 @@
-namespace MideaAcIntegration;
+namespace MideaAcIntegration.MideaNet;
 
-public enum OperationalModes
+public enum OperationalMode
 {
     Auto = 1,
     Cool = 2,
