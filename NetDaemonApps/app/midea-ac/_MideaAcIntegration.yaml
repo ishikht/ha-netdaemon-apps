@@ -1,0 +1,4 @@
+midea_ac_app:
+  class: MideaAcIntegration.MideaAcIntegration
+  email: <your midea account email>
+  password: <your midea account password>
