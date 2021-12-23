@@ -121,7 +121,7 @@ public class MideaCloud
             var command = new MideaSetCommand
             {
                 PowerState = operationalMode != OperationalMode.Off,
-                OperationalMode = (int) operationalMode,
+                OperationalMode = operationalMode != OperationalMode.Off ? (int) operationalMode : 0,
                 TargetTemperature = targetTemperature
             };
 
