@@ -2,10 +2,10 @@
 {
     public class TuyaDeviceConfig
     {
-        public string? ip { get; set; }
-        public string? name { get; set; }
-        public string? friendly_name { get; set; }
-        public string? localKey { get; set; }
-        public string? deviceId { get; set; }
+        public string? Ip { get; set; }
+        public string? Name { get; set; }
+        public string? FriendlyName { get; set; }
+        public string? LocalKey { get; set; }
+        public string? DeviceId { get; set; }
     }
 }
