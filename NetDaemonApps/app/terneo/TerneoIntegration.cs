@@ -108,8 +108,8 @@ namespace TerneoIntegration
             _onlineDevices.Add(entityName, device);
 
             await UpdateHaEntityState(entityName);
-            
-            SetInterval(async() => await UpdateHaEntityState(entityName), 60000);
+
+            RunEveryMinute(0, async () => await UpdateHaEntityState(entityName));
         }
 
         private async Task UpdateHaEntityState(string entityName)
@@ -195,19 +195,6 @@ namespace TerneoIntegration
                         return null;
                     }
             }
-        }
-
-        private static System.Timers.Timer SetInterval(Func<Task> action, int interval)
-        {
-            async void OnTmrOnElapsed(object? sender, ElapsedEventArgs args) => await action();
-            
-            System.Timers.Timer timer = new();
-            timer.Elapsed += OnTmrOnElapsed;
-            timer.AutoReset = true;
-            timer.Interval = interval;
-            timer.Start();
-
-            return timer;
         }
     }
 }
