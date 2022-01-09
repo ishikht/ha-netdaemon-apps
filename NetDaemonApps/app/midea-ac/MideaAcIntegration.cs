@@ -62,7 +62,7 @@ public class MideaAcIntegration : NetDaemonRxApp
 
         var hvacMode = hvacModeItem.GetStringOrDefault();
 
-        var entityId = entityIdItem.GetStringOrDefault();
+        var entityId = entityIdItem.IsEnumerable ? entityIdItem[0].GetStringOrDefault() : entityIdItem.GetStringOrDefault();
 
         _discoveredDevices.TryGetValue(entityId, out var device);
         if (device == null) return;
