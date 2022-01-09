@@ -52,7 +52,8 @@ namespace TerneoIntegration
 
             var hvacMode = hvacModeItem.GetStringOrDefault();
 
-            var entity = entityItem.GetStringOrDefault();
+            var entity = entityItem.IsEnumerable ? entityItem[0].GetStringOrDefault() : entityItem.GetStringOrDefault();
+
             _onlineDevices.TryGetValue(entity, out var device);
             if (device == null ) return;
 
