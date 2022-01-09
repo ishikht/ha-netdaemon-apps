@@ -3,6 +3,5 @@ tuya_app:
   devices:
   - name: "e.g. tuya_window_bedroom"
     friendly_name: "e.g. Bedroom window"
-    ip: "Device IP"
     local_key: "Local Key"
     device_id: "Device Id"

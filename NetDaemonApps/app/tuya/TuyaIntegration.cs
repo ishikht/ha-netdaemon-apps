@@ -30,14 +30,13 @@ public class TuyaIntegration : NetDaemonRxApp
         {
             Log($"TUYA: Device discovered: IP: {e.IP}, ID: {e.GwId}, version: {e.Version}");
             var device = Devices?.FirstOrDefault(d => d.DeviceId == e.GwId);
-            if (device?.Ip == null
-                || device.LocalKey == null
+            if ( device?.LocalKey == null
                 || device.DeviceId == null
                 || device.Name == null)
                 return;
 
             Dictionary<int, object> result;
-            var tuyaDevice = new TuyaDevice(device.Ip, device.LocalKey, device.DeviceId);
+            var tuyaDevice = new TuyaDevice(e.IP, device.LocalKey, device.DeviceId);
             result = await tuyaDevice.GetDps();
 
             if (result.Any() && result.ContainsKey(1))
