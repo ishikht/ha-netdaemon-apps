@@ -131,11 +131,10 @@ namespace TerneoIntegration
             
             const int minTemperature = 5;
             const int maxTemperature = 45;
-            var temperature = Math.Round(telemetry.CurrentTemperature, 1);
+            decimal temperature = Math.Round(telemetry.CurrentTemperature, 1);
             if (temperature is < minTemperature or > maxTemperature)
             {
-                LogError($"TERNEO: Wrong temperature, value {temperature} out of min/max temperature");
-                return;
+                LogWarning($"TERNEO: Wrong temperature {entityName}, value {temperature} out of min/max temperature");
             }
 
             SetState(entityName, state, new

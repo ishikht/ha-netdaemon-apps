@@ -9,7 +9,8 @@ namespace TerneoIntegration.TerneoNet.JsonConverters
     {
         public override decimal Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return decimal.Parse(reader.GetString(), CultureInfo.InvariantCulture);
+            var str = reader.GetString();
+            return str == null ? default : decimal.Parse(str, CultureInfo.InvariantCulture);
         }
 
         public override void Write(Utf8JsonWriter writer, decimal value, JsonSerializerOptions options)
