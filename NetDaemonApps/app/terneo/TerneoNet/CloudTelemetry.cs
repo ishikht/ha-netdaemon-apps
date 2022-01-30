@@ -13,6 +13,7 @@ namespace TerneoIntegration.TerneoNet
         public decimal CurrentTemperature { get; set; }
 
         [JsonPropertyName("setpoint_state")]
+        [JsonConverter(typeof(NullableBoolToBoolConverter))]
         public bool Heating { get; set; }
 
         [JsonPropertyName("temp_setpoint")]
